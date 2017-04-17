@@ -1,7 +1,7 @@
 /*
- * Copyright (C) 2011-2015 Project SkyFire <http://www.projectskyfire.org/>
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2015 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2011-2017 Project SkyFire <http://www.projectskyfire.org/>
+ * Copyright (C) 2008-2017 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2005-2017 MaNGOS <https://www.getmangos.eu/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -67,10 +67,10 @@ Group::~Group()
 {
     if (m_bgGroup)
     {
-        TC_LOG_DEBUG("bg.battleground", "Group::~Group: battleground group being deleted.");
+        SF_LOG_DEBUG("bg.battleground", "Group::~Group: battleground group being deleted.");
         if (m_bgGroup->GetBgRaid(ALLIANCE) == this) m_bgGroup->SetBgRaid(ALLIANCE, NULL);
         else if (m_bgGroup->GetBgRaid(HORDE) == this) m_bgGroup->SetBgRaid(HORDE, NULL);
-        else TC_LOG_ERROR("misc", "Group::~Group: battleground group is not linked to the correct battleground.");
+        else SF_LOG_ERROR("misc", "Group::~Group: battleground group is not linked to the correct battleground.");
     }
     Rolls::iterator itr;
     while (!RollId.empty())
@@ -920,24 +920,73 @@ void Group::SendLootAllPassed(Roll const& roll)
 }
 
 // notify group members which player is the allowed looter for the given creature
-void Group::SendLooter(Creature* creature, Player* groupLooter)
+void Group::SendLooter(Creature* creature, Player* pLooter)
 {
     ASSERT(creature);
 
     ObjectGuid creatureGuid = creature->GetGUID();
+    ObjectGuid looterGuid = pLooter ? pLooter->GetGUID() : 0;
+    ObjectGuid masterLooterGuid = GetLootMethod() == MASTER_LOOT ? GetLooterGuid() : 0;
     WorldPacket data(SMSG_LOOT_LIST);
 
     data.WriteBit(creatureGuid[5]);
-    data.WriteBit(0);
+    data.WriteBit(masterLooterGuid != (uint64)0);
+    if (masterLooterGuid)
+    {
+        data.WriteBit(masterLooterGuid[4]);
+        data.WriteBit(masterLooterGuid[6]);
+        data.WriteBit(masterLooterGuid[0]);
+        data.WriteBit(masterLooterGuid[7]);
+        data.WriteBit(masterLooterGuid[5]);
+        data.WriteBit(masterLooterGuid[2]);
+        data.WriteBit(masterLooterGuid[3]);
+        data.WriteBit(masterLooterGuid[1]);
+    }
     data.WriteBit(creatureGuid[1]);
-    data.WriteBit(0);
+    data.WriteBit(looterGuid != (uint64)0);
     data.WriteBit(creatureGuid[4]);
     data.WriteBit(creatureGuid[3]);
     data.WriteBit(creatureGuid[2]);
+    if (looterGuid)
+    {
+        data.WriteBit(looterGuid[2]);
+        data.WriteBit(looterGuid[3]);
+        data.WriteBit(looterGuid[4]);
+        data.WriteBit(looterGuid[5]);
+        data.WriteBit(looterGuid[6]);
+        data.WriteBit(looterGuid[0]);
+        data.WriteBit(looterGuid[1]);
+        data.WriteBit(looterGuid[7]);
+    }
     data.WriteBit(creatureGuid[7]);
     data.WriteBit(creatureGuid[0]);
     data.WriteBit(creatureGuid[6]);
-    
+    data.FlushBits();
+
+    if (looterGuid)
+    {
+        data.WriteByteSeq(looterGuid[7]);
+        data.WriteByteSeq(looterGuid[1]);
+        data.WriteByteSeq(looterGuid[0]);
+        data.WriteByteSeq(looterGuid[6]);
+        data.WriteByteSeq(looterGuid[5]);
+        data.WriteByteSeq(looterGuid[3]);
+        data.WriteByteSeq(looterGuid[4]);
+        data.WriteByteSeq(looterGuid[2]);
+    }
+
+    if (masterLooterGuid)
+    {
+        data.WriteByteSeq(masterLooterGuid[4]);
+        data.WriteByteSeq(masterLooterGuid[5]);
+        data.WriteByteSeq(masterLooterGuid[6]);
+        data.WriteByteSeq(masterLooterGuid[3]);
+        data.WriteByteSeq(masterLooterGuid[2]);
+        data.WriteByteSeq(masterLooterGuid[7]);
+        data.WriteByteSeq(masterLooterGuid[0]);
+        data.WriteByteSeq(masterLooterGuid[1]);
+    }
+
     data.WriteByteSeq(creatureGuid[5]);
     data.WriteByteSeq(creatureGuid[1]);
     data.WriteByteSeq(creatureGuid[6]);
@@ -964,7 +1013,7 @@ void Group::GroupLoot(Loot* loot, WorldObject* pLootedObject)
         item = sObjectMgr->GetItemTemplate(i->itemid);
         if (!item)
         {
-            //TC_LOG_DEBUG("misc", "Group::GroupLoot: missing item prototype for item with id: %d", i->itemid);
+            //SF_LOG_DEBUG("misc", "Group::GroupLoot: missing item prototype for item with id: %d", i->itemid);
             continue;
         }
 
@@ -1051,7 +1100,7 @@ void Group::GroupLoot(Loot* loot, WorldObject* pLootedObject)
         item = sObjectMgr->GetItemTemplate(i->itemid);
         if (!item)
         {
-            //TC_LOG_DEBUG("misc", "Group::GroupLoot: missing item prototype for item with id: %d", i->itemid);
+            //SF_LOG_DEBUG("misc", "Group::GroupLoot: missing item prototype for item with id: %d", i->itemid);
             continue;
         }
 
@@ -1248,7 +1297,7 @@ void Group::NeedBeforeGreed(Loot* loot, WorldObject* lootedObject)
 
 void Group::MasterLoot(Loot* /*loot*/, WorldObject* pLootedObject)
 {
-    TC_LOG_DEBUG("network", "Group::MasterLoot (SMSG_LOOT_MASTER_LIST)");
+    SF_LOG_DEBUG("network", "Group::MasterLoot (SMSG_LOOT_MASTER_LIST)");
 
     uint32 realCount = 0;
     ObjectGuid lootedGuid = pLootedObject->GetGUID();
@@ -2483,7 +2532,7 @@ InstanceGroupBind* Group::BindToInstance(InstanceSave* save, bool permanent, boo
     bind.save = save;
     bind.perm = permanent;
     if (!load)
-        TC_LOG_DEBUG("maps", "Group::BindToInstance: Group (guid: %u, storage id: %u) is now bound to map %d, instance %d, difficulty %d",
+        SF_LOG_DEBUG("maps", "Group::BindToInstance: Group (guid: %u, storage id: %u) is now bound to map %d, instance %d, difficulty %d",
         GUID_LOPART(GetGUID()), m_dbStoreId, save->GetMapId(), save->GetInstanceId(), save->GetDifficulty());
 
     return &bind;
@@ -2526,7 +2575,7 @@ void Group::BroadcastGroupUpdate(void)
         {
             pp->ForceValuesUpdateAtIndex(UNIT_FIELD_SHAPESHIFT_FORM);
             pp->ForceValuesUpdateAtIndex(UNIT_FIELD_FACTION_TEMPLATE);
-            TC_LOG_DEBUG("misc", "-- Forced group value update for '%s'", pp->GetName().c_str());
+            SF_LOG_DEBUG("misc", "-- Forced group value update for '%s'", pp->GetName().c_str());
         }
     }
 }
@@ -2884,13 +2933,13 @@ void Group::ReadyCheckMemberHasResponded(uint64 guid)
 
 void Group::ReadyCheckResetResponded()
 {
-    for (member_witerator itr = m_memberSlots.begin(); itr != m_memberSlots.end(); itr++)
+    for (member_witerator itr = m_memberSlots.begin(); itr != m_memberSlots.end(); ++itr)
         itr->readyCheckHasResponded = false;
 }
 
 bool Group::ReadyCheckAllResponded() const
 {
-    for (member_citerator itr = m_memberSlots.begin(); itr != m_memberSlots.end(); itr++)
+    for (member_citerator itr = m_memberSlots.begin(); itr != m_memberSlots.end(); ++itr)
         if (!itr->readyCheckHasResponded)
             return false;
 

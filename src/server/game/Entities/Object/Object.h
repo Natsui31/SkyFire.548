@@ -1,7 +1,7 @@
 /*
- * Copyright (C) 2011-2015 Project SkyFire <http://www.projectskyfire.org/>
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2015 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2011-2017 Project SkyFire <http://www.projectskyfire.org/>
+ * Copyright (C) 2008-2017 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2005-2017 MaNGOS <https://www.getmangos.eu/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -119,62 +119,6 @@ class WorldPacket;
 class ZoneScript;
 
 typedef UNORDERED_MAP<Player*, UpdateData> UpdateDataMapType;
-
-//! Structure to ease conversions from single 64 bit integer guid into individual bytes, for packet sending purposes
-//! Nuke this out when porting ObjectGuid from MaNGOS, but preserve the per-byte storage
-struct ObjectGuid
-{
-    public:
-        ObjectGuid() { _data.u64 = UI64LIT(0); }
-        ObjectGuid(uint64 guid) { _data.u64 = guid; }
-        ObjectGuid(ObjectGuid const& other) { _data.u64 = other._data.u64; }
-
-        uint8& operator[](uint32 index)
-        {
-            ASSERT(index < sizeof(uint64));
-
-#if TRINITY_ENDIAN == TRINITY_LITTLEENDIAN
-            return _data.byte[index];
-#else
-            return _data.byte[7 - index];
-#endif
-        }
-
-        uint8 const& operator[](uint32 index) const
-        {
-            ASSERT(index < sizeof(uint64));
-
-#if TRINITY_ENDIAN == TRINITY_LITTLEENDIAN
-            return _data.byte[index];
-#else
-            return _data.byte[7 - index];
-#endif
-        }
-
-        operator uint64()
-        {
-            return _data.u64;
-        }
-
-        ObjectGuid& operator=(uint64 guid)
-        {
-            _data.u64 = guid;
-            return *this;
-        }
-
-        ObjectGuid& operator=(ObjectGuid const& other)
-        {
-            _data.u64 = other._data.u64;
-            return *this;
-        }
-
-    private:
-        union
-        {
-            uint64 u64;
-            uint8 byte[8];
-        } _data;
-};
 
 class Object
 {
@@ -864,7 +808,7 @@ class WorldObject : public Object, public WorldLocation
         bool CanDetectStealthOf(WorldObject const* obj) const;
 };
 
-namespace Trinity
+namespace Skyfire
 {
     // Binary predicate to sort WorldObjects based on the distance to a reference WorldObject
     class ObjectDistanceOrderPred

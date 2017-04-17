@@ -1,7 +1,7 @@
 /*
- * Copyright (C) 2011-2015 Project SkyFire <http://www.projectskyfire.org/>
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2015 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2011-2017 Project SkyFire <http://www.projectskyfire.org/>
+ * Copyright (C) 2008-2017 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2005-2017 MaNGOS <https://www.getmangos.eu/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -30,6 +30,7 @@
 enum MageSpells
 {
     SPELL_MAGE_CLONE_ME                 = 45204,
+    SPELL_MAGE_CLONE_WEAPONS            = 41054,
     SPELL_MAGE_MASTERS_THREAT_LIST      = 58838
 };
 
@@ -53,7 +54,8 @@ class npc_pet_mage_mirror_image : public CreatureScript
                 // here mirror image casts on summoner spell (not present in client dbc) 49866
                 // here should be auras (not present in client dbc): 35657, 35658, 35659, 35660 selfcasted by mirror images (stats related?)
                 // Clone Me!
-                owner->CastSpell(me, SPELL_MAGE_CLONE_ME, false);
+                owner->CastSpell(me, SPELL_MAGE_CLONE_ME, true);
+                owner->CastSpell(me, SPELL_MAGE_CLONE_WEAPONS, true);
             }
 
             // Do not reload Creature templates on evade mode enter - prevent visual lost

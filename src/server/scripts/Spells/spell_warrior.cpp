@@ -1,7 +1,7 @@
 /*
- * Copyright (C) 2011-2015 Project SkyFire <http://www.projectskyfire.org/>
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2015 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2011-2017 Project SkyFire <http://www.projectskyfire.org/>
+ * Copyright (C) 2008-2017 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2005-2017 MaNGOS <https://www.getmangos.eu/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -30,9 +30,11 @@
 
 enum WarriorSpells
 {
+    SPELL_WARRIOR_ALLOW_RAGING_BLOW                 = 131116,
     SPELL_WARRIOR_BLOODTHIRST                       = 23885,
     SPELL_WARRIOR_BLOODTHIRST_DAMAGE                = 23881,
     SPELL_WARRIOR_CHARGE                            = 34846,
+    SPELL_WARRIOR_CHARGE_STUN                       = 7922,
     SPELL_WARRIOR_COLOSSUS_SMASH                    = 86346,
     SPELL_WARRIOR_DEEP_WOUNDS_RANK_1                = 12162,
     SPELL_WARRIOR_DEEP_WOUNDS_RANK_2                = 12850,
@@ -40,10 +42,9 @@ enum WarriorSpells
     SPELL_WARRIOR_DEEP_WOUNDS_RANK_PERIODIC         = 12721,
     SPELL_WARRIOR_EXECUTE                           = 20647,
     SPELL_WARRIOR_GLYPH_OF_EXECUTION                = 58367,
-    SPELL_WARRIOR_JUGGERNAUT_CRIT_BONUS_BUFF        = 65156,
-    SPELL_WARRIOR_JUGGERNAUT_CRIT_BONUS_TALENT      = 64976,
     SPELL_WARRIOR_LAST_STAND_TRIGGERED              = 12976,
     SPELL_WARRIOR_MORTAL_STRIKE                     = 12294,
+    SPELL_WARRIOR_RAGING_BLOW                       = 85288,
     SPELL_WARRIOR_RALLYING_CRY                      = 97463,
     SPELL_WARRIOR_REND                              = 94009,
     SPELL_WARRIOR_RETALIATION_DAMAGE                = 22858,
@@ -61,7 +62,10 @@ enum WarriorSpells
     SPELL_WARRIOR_UNRELENTING_ASSAULT_TRIGGER_1     = 64849,
     SPELL_WARRIOR_UNRELENTING_ASSAULT_TRIGGER_2     = 64850,
     SPELL_WARRIOR_VIGILANCE_PROC                    = 50725,
-    SPELL_WARRIOR_VENGEANCE                         = 76691
+    SPELL_WARRIOR_VENGEANCE                         = 76691,
+    SPELL_WARRIOR_WARBRINGER                        = 103828,
+    SPELL_WARRIOR_WARBRINGER_ROOT                   = 105771,
+    SPELL_WARRIOR_WARBRINGER_SLOW                   = 137637
 };
 
 enum WarriorSpellIcons
@@ -159,8 +163,10 @@ class spell_warr_charge : public SpellScriptLoader
 
             bool Validate(SpellInfo const* /*spellInfo*/) OVERRIDE
             {
-                if (!sSpellMgr->GetSpellInfo(SPELL_WARRIOR_JUGGERNAUT_CRIT_BONUS_TALENT) ||
-                    !sSpellMgr->GetSpellInfo(SPELL_WARRIOR_JUGGERNAUT_CRIT_BONUS_BUFF) ||
+                if (!sSpellMgr->GetSpellInfo(SPELL_WARRIOR_WARBRINGER_ROOT) ||
+                    !sSpellMgr->GetSpellInfo(SPELL_WARRIOR_WARBRINGER_SLOW) ||
+                    !sSpellMgr->GetSpellInfo(SPELL_WARRIOR_WARBRINGER) ||
+                    !sSpellMgr->GetSpellInfo(SPELL_WARRIOR_CHARGE_STUN) ||
                     !sSpellMgr->GetSpellInfo(SPELL_WARRIOR_CHARGE))
                     return false;
                 return true;
@@ -171,15 +177,28 @@ class spell_warr_charge : public SpellScriptLoader
                 int32 chargeBasePoints0 = GetEffectValue();
                 Unit* caster = GetCaster();
                 caster->CastCustomSpell(caster, SPELL_WARRIOR_CHARGE, &chargeBasePoints0, NULL, NULL, true);
-
-                // Juggernaut crit bonus
-                if (caster->HasAura(SPELL_WARRIOR_JUGGERNAUT_CRIT_BONUS_TALENT))
-                    caster->CastSpell(caster, SPELL_WARRIOR_JUGGERNAUT_CRIT_BONUS_BUFF, true);
             }
+
+            void HandleCharge(SpellEffIndex /*effIndex*/)
+            {
+                if (Unit* target = GetHitUnit())
+                {
+                    if (GetCaster()->HasAura(SPELL_WARRIOR_WARBRINGER))
+                    {
+                        GetCaster()->CastSpell(target, SPELL_WARRIOR_WARBRINGER_ROOT, true);
+                        GetCaster()->CastSpell(target, SPELL_WARRIOR_WARBRINGER_SLOW, true);
+                    }
+                    else
+                        GetCaster()->CastSpell(target, SPELL_WARRIOR_CHARGE_STUN, true);
+                }
+            }
+
 
             void Register() OVERRIDE
             {
                 OnEffectHitTarget += SpellEffectFn(spell_warr_charge_SpellScript::HandleDummy, EFFECT_1, SPELL_EFFECT_DUMMY);
+                OnEffectHitTarget += SpellEffectFn(spell_warr_charge_SpellScript::HandleCharge, EFFECT_0, SPELL_EFFECT_CHARGE);
+
             }
         };
 
@@ -1060,6 +1079,85 @@ class spell_warr_vigilance_trigger : public SpellScriptLoader
         }
 };
 
+class spell_warr_raging_blow : public SpellScriptLoader
+{
+    public:
+        spell_warr_raging_blow() : SpellScriptLoader("spell_warr_raging_blow") { }
+
+        class spell_warr_raging_blow_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_warr_raging_blow_SpellScript);
+
+            bool Validate(SpellInfo const* /*spellEntry*/)
+            {
+                if (!sSpellMgr->GetSpellInfo(SPELL_WARRIOR_RAGING_BLOW))
+                    return false;
+                return true;
+            }
+
+            void HandleOnHit()
+            {
+                if (Player* _player = GetCaster()->ToPlayer())
+                {
+                    if (_player->HasAura(SPELL_WARRIOR_ALLOW_RAGING_BLOW))
+                    {
+                        if (_player->GetAura(SPELL_WARRIOR_ALLOW_RAGING_BLOW))
+                        {
+                            int32 stacks = _player->GetAura(SPELL_WARRIOR_ALLOW_RAGING_BLOW)->GetStackAmount();
+
+                            if (stacks <= 1)
+                            {
+                                _player->RemoveAura(SPELL_WARRIOR_ALLOW_RAGING_BLOW);
+                            }
+                            else
+                            {
+                                _player->GetAura(SPELL_WARRIOR_ALLOW_RAGING_BLOW)->SetStackAmount(stacks - 1);
+                            }
+                        }
+                    }
+                }
+            }
+
+            void Register()
+            {
+                OnHit += SpellHitFn(spell_warr_raging_blow_SpellScript::HandleOnHit);
+            }
+        };
+
+        SpellScript* GetSpellScript() const OVERRIDE
+        {
+            return new spell_warr_raging_blow_SpellScript();
+        }
+};
+
+class spell_warr_raging_blow_proc : public SpellScriptLoader
+{
+    public:
+        spell_warr_raging_blow_proc() : SpellScriptLoader("spell_warr_raging_blow_proc") {}
+
+        class spell_warr_raging_blow_proc_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_warr_raging_blow_proc_SpellScript);
+
+            void HandleOnHit()
+            {
+                if (Player* _player = GetCaster()->ToPlayer())
+                    if (_player->GetSpecializationId(_player->GetActiveSpec()) == TALENT_TREE_WARRIOR_FURY && _player->getLevel() >= 30)
+                        _player->CastSpell(_player, SPELL_WARRIOR_ALLOW_RAGING_BLOW, true);
+            }
+
+            void Register()
+            {
+                OnHit += SpellHitFn(spell_warr_raging_blow_proc_SpellScript::HandleOnHit);
+            }
+        };
+
+        SpellScript* GetSpellScript() const	OVERRIDE
+        {
+            return new spell_warr_raging_blow_proc_SpellScript();
+        }
+};
+
 void AddSC_warrior_spell_scripts()
 {
     new spell_warr_bloodthirst();
@@ -1074,6 +1172,8 @@ void AddSC_warrior_spell_scripts()
     new spell_warr_lambs_to_the_slaughter();
     new spell_warr_last_stand();
     new spell_warr_overpower();
+	new spell_warr_raging_blow();
+	new spell_warr_raging_blow_proc();
     new spell_warr_rallying_cry();
     new spell_warr_rend();
     new spell_warr_retaliation();
